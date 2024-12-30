@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Room</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+
+  <div class="overlay absolute h-full w-full top-0 left-0 bg-green-200 flex z-10 items-center flex-col justify-center ">
+    <div
+      class="card h-[200px] w-[250px] shadow-lg rounded-md flex justify-center items-center flex-col gap-3 bg-blue-200">
+      <input type="file" name="dp" class="fileinput ml-[6vw]" accept="image/*">
+      <input class="inputname p-2 rounded-md border-2 outline-none" type="text" placeholder="Enter your name">
+      <button class="setbtn bg-blue-500 rounded-md p-2">Set Name</button>
+    </div>
+  </div>
+  <div
+    class="logoutcard h-[200px] w-[250px] absolute top-1/2 left-1/2 py-12 px-14 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center gap-[3vw] hidden bg-gray-100 shadow-lg rounded-md">
+    <h1>Do you want to logout?</h1>
+    <div class="btns flex gap-2 items-center justify-center">
+      <div class="btnNo py-2 px-4 bg-blue-300 rounded-md"><button>No</button></div>
+      <div class="btnyes px-4 py-2 bg-red-500 rounded-md">
+        <h1><a href="/logout"><button>Yes</button></a></h1>
+      </div>
+    </div>
+  </div>
+
+  <div class="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+    <div class="bg-blue-500 text-white text-center flex items-center justify-between px-4 flex-row gap-12 py-4">
+      <div class="chat flex items-center justify-center gap-3">
+        <h2 class="text-lg font-semibold">Chat Room</h2>
+        <h3 class="-mb-1 ml-3 tracking-tight text-sm"><span class="onlineusers"></span> People Live.</h3>
+      </div>
+      <div class="Dp h-[60px] w-[60px] rounded-full bg-black overflow-hidden">
+        <img class="dp-img h-full w-full object-cover"
+          src="https://images.unsplash.com/photo-1617632679997-4382a0f0ff78?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MzJ8fG1vZGVsc3xlbnwwfHwwfHx8MA%3D%3D"
+          alt="">
+      </div>
+      <div class="namecontainer flex items-center justify-center gap-3">
+        <div class="typing text-black font-semibold tracking-tight"><span></span></div>
+        <div class="name text-black font-semibold tracking-tight"><span>a</span> is chatting</div>
+        <div class="resetbtn rounded-md text-white h-[50px] w-[100px] flex items-center gap-2 justify-center ml-3">
+          <h1 class="font-semibold p-2 bg-red-600 rounded-md"><a href="/login">reset</a></h1>
+          <h1 class="font-semibold logoutbtn p-2 bg-black rounded-md"><a><button>logout</button></a></h1>
+        </div>
+      </div>
+    </div>
+    <div class="p-4 h-96 overflow-y-auto flex flex-col gap-3 messagebox">
+      <!-- Messages will be dynamically inserted here -->
+    </div>
+    <div class="flex border-t p-4">
+      <input type="text" class="message-input w-full border-2 rounded-lg outline-none p-2"
+        placeholder="Type a message..." autocomplete="off">
+      <button class="send-button bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600">Send</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
+    integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
+    crossorigin="anonymous"></script>
+    <script>
+      const socket = io();
+      let timer;
+      const input = document.querySelector('.message-input');
+      const sendbtn = document.querySelector('.send-button');
+      const messagebox = document.querySelector('.messagebox');
+      const overlay = document.querySelector('.overlay'); // This should refer to the login card/overlay
+      const inputname = document.querySelector('.inputname');
+      const setbtn = document.querySelector('.setbtn');
+      const onlineusers = document.querySelector('.onlineusers');
+      const fileinput = document.querySelector('.fileinput');
+      const dpImg = document.querySelector('.dp-img');
+      const logoutbtn = document.querySelector('.logoutbtn');
+      const logoutcard = document.querySelector('.logoutcard');
+      const btnNo = document.querySelector('.btnNo');
+    
+      let imageUrl = '';
+    
+      // Logout button handling
+      logoutbtn.addEventListener('click', function () {
+        logoutcard.style.display = 'block';
+      });
+      btnNo.addEventListener('click', function () {
+        logoutcard.style.display = 'none';
+      });
+    
+      // File input change handler
+      fileinput.addEventListener('change', function () {
+        const file = fileinput.files[0];
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          imageUrl = e.target.result;
+          dpImg.src = imageUrl;
+        };
+        reader.readAsDataURL(file);
+      });
+    
+      // Typing event handling
+      input.addEventListener('input', function () {
+        socket.emit('typing');
+      });
+    
+      socket.on('typing', function (name) {
+        document.querySelector('.typing').textContent = `${name} is typing...`;
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+          document.querySelector('.typing').textContent = '';
+        }, 1200);
+      });
+    
+      // Set name handling
+      setbtn.addEventListener('click', function () {
+        // Simplified approach without FormData
+        const name = inputname.value.trim();
+        const file = fileinput.files[0];
+        
+        // Log the data we're about to send
+        console.log('Name:', name);
+        console.log('File:', file);
+
+        // Prepare the data to send
+        const formData = new FormData();
+    formData.append('name', name);
+    if (file) {
+        formData.append('file', file);
+    }
+
+    // Send the data using fetch API
+    fetch('/setprofile', {
+        method: 'POST',
+        body: formData, // FormData handles the multipart/form-data automatically
+    }).then(response => response.json())
+        .then(result => {
+            console.log('Server response:', result);
+            if (result.success) {
+                socket.emit('nameset', { name: result.name, image: result.image });
+                overlay.style.display = 'none';
+            } else {
+                console.error('Error setting profile:', result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+        });
+
+       
+      });
+    
+      socket.on('connect', function () {
+        console.log('Connected to server');
+      });
+    
+      socket.on('namesetdone', function () {
+        document.querySelector('.name').textContent = inputname.value.trim() + ' is chatting';
+        overlay.style.display = 'none'; // Ensure overlay is hidden when name is set
+      });
+    
+      // Number of users online event handling
+      socket.on('numberofusers', function (number) {
+        onlineusers.textContent = number;
+      });
+    
+      // Input name field validation (removes spaces)
+      inputname.addEventListener('input', function (e) {
+        let newvalue = '';
+        if (inputname.value.trim().length > 0) {
+          newvalue = inputname.value.replace(" ", "_");
+        } else {
+          newvalue = "";
+        }
+        inputname.value = newvalue;
+      });
+    
+      // Message send handling
+      sendbtn.addEventListener('click', function () {
+        socket.emit('message', input.value);
+        input.value = '';
+      });
+    
+      // Receiving messages from server
+      socket.on('message', function (message) {
+        const mymsg = message.id === socket.id;
+        const formattedTime = new Date(message.time).toLocaleTimeString();
+        const messageHTML = `
+        <div class="flex ${mymsg ? 'justify-end' : 'justify-start'} items-end gap-2">
+          ${mymsg ? '' : `<img src="${message.dp}" alt="dp" class="h-10 w-10 rounded-full">`}
+          <div class="${mymsg ? 'bg-green-200' : 'bg-blue-200'} p-3 rounded-lg shadow-md max-w-[200px] break-words text-black">
+            <p class="text-sm">${message.message}</p>
+          </div>
+          ${mymsg ? `<img src="${message.dp}" alt="dp" class="h-10 w-10 rounded-full object-cover">` : ''}
+          <div class="flex flex-col items-start ${mymsg ? 'items-end' : ''}">
+            <span class="user text-xs text-gray-500">${message.name}</span>
+            <span class="user text-xs text-gray-500">${formattedTime}</span>
+          </div>
+        </div>`;
+        messagebox.innerHTML += messageHTML;
+        messagebox.scrollTop = messagebox.scrollHeight;
+      });
+    </script>
+    
+</body>
+
+</html>
